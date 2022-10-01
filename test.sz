@@ -1,0 +1,35 @@
+loop    ld src
+        add 1
+        st src
+        dec
+        ; ld @acc
+        add ld0
+        st ld00
+ld00    ld 0
+        ;
+        st buf
+        ld dest
+        add 1
+        st dest
+        dec
+        st buf2
+        ld buf
+        ; st @buf2
+        st aux
+        ld buf2
+        ; ld @acc
+        add ld0
+        st ld01
+ld01    ld 0
+        ;
+        add st0
+        st st00
+        ld aux
+st00    st 0
+        ;
+        bz halt
+        br loop
+halt    halt
+
+ld0     ld 0
+st0     st 0
