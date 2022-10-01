@@ -1,2 +1,27 @@
+[package]
+name = "simplez_gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eframe = { version = "0.19.0", features = ["persistence"] }
+serde = { version = "1", features = ["derive"] }
+simplez_common = { path = "common" }
+simplez_assembler = { path = "assembler" }
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tracing-subscriber = "0.3"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+tracing-wasm = "0.2"
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
 [workspace]
 members = ["assembler", "common"]

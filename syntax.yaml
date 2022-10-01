@@ -1,0 +1,15 @@
+%YAML 1.2
+---
+name: Simplez
+file_extensions: [sz]
+scope: source.sz
+
+contexts:
+  main:
+    - match: [a-zA-Z][a-zA-Z0-9]*
+      scope: label.sz
+      push: instruction
+
+  instruction:
+    - match: \b(ld|st|add|br|bz|dec|clr|halt)\b
+      
