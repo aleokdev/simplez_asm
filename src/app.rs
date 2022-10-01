@@ -1,72 +1,19 @@
-use eframe::egui::{self, Label, RichText, TextEdit};
+use eframe::{
+    egui::{self, Label, RichText, Slider, TextEdit},
+    emath::vec2,
+};
+use simplez_assembler::nom;
 use simplez_common::Instruction;
-
-mod arrays {
-    use std::{convert::TryInto, marker::PhantomData};
-
-    use serde::{
-        de::{SeqAccess, Visitor},
-        ser::SerializeTuple,
-        Deserialize, Deserializer, Serialize, Serializer,
-    };
-    pub fn serialize<S: Serializer, T: Serialize, const N: usize>(
-        data: &[T; N],
-        ser: S,
-    ) -> Result<S::Ok, S::Error> {
-        let mut s = ser.serialize_tuple(N)?;
-        for item in data {
-            s.serialize_element(item)?;
-        }
-        s.end()
-    }
-
-    struct ArrayVisitor<T, const N: usize>(PhantomData<T>);
-
-    impl<'de, T, const N: usize> Visitor<'de> for ArrayVisitor<T, N>
-    where
-        T: Deserialize<'de>,
-    {
-        type Value = [T; N];
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str(&format!("an array of length {}", N))
-        }
-
-        #[inline]
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: SeqAccess<'de>,
-        {
-            // can be optimized using MaybeUninit
-            let mut data = Vec::with_capacity(N);
-            for _ in 0..N {
-                match (seq.next_element())? {
-                    Some(val) => data.push(val),
-                    None => return Err(serde::de::Error::invalid_length(N, &self)),
-                }
-            }
-            match data.try_into() {
-                Ok(arr) => Ok(arr),
-                Err(_) => unreachable!(),
-            }
-        }
-    }
-    pub fn deserialize<'de, D, T, const N: usize>(deserializer: D) -> Result<[T; N], D::Error>
-    where
-        D: Deserializer<'de>,
-        T: Deserialize<'de>,
-    {
-        deserializer.deserialize_tuple(N, ArrayVisitor::<T, N>(PhantomData))
-    }
-}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
     program: String,
+    assembler_output: String,
+    error_loc: Option<usize>,
 
-    #[serde(with = "arrays")]
+    #[serde(with = "crate::util::arrays")]
     memory: [u16; 512],
 }
 
@@ -74,6 +21,8 @@ impl Default for App {
     fn default() -> Self {
         Self {
             program: String::new(),
+            error_loc: Some(5),
+            assembler_output: String::new(),
             memory: [0; 512],
         }
     }
@@ -106,22 +55,64 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
-            let textedit_response = ui.add(
-                TextEdit::multiline(&mut self.program)
-                    .code_editor()
-                    .desired_width(ui.available_width() / 2.)
-                    .desired_rows(40),
-            );
+            ui.horizontal_top(|ui| {
+                let textedit_response = ui.add(
+                    TextEdit::multiline(&mut self.program)
+                        .code_editor()
+                        .desired_width(ui.available_width() / 2.)
+                        .desired_rows(40),
+                );
 
-            if textedit_response.changed() {
-                if let Ok(res) = simplez_assembler::assemble(&self.program) {
-                    self.memory = [0; 512];
-                    res.1
-                        .into_iter()
-                        .enumerate()
-                        .for_each(|(i, x)| self.memory[i] = x);
+                if let Some(error_loc) = &mut self.error_loc {
+                    let mut error_rect = textedit_response.rect;
+                    error_rect.min.y = error_rect.min.y
+                        + ui.text_style_height(&egui::TextStyle::Monospace) * *error_loc as f32;
+                    error_rect.set_height(ui.text_style_height(&egui::TextStyle::Monospace));
+
+                    ui.painter().rect_filled(
+                        error_rect,
+                        1.,
+                        ui.style().visuals.error_fg_color.linear_multiply(0.4),
+                    );
                 }
-            }
+
+                if textedit_response.changed() {
+                    match simplez_assembler::assemble(&self.program) {
+                        Ok(res) => {
+                            self.memory = [0; 512];
+                            self.assembler_output = "Successfully assembled program.".to_owned();
+                            self.error_loc = None;
+                            res.1
+                                .into_iter()
+                                .enumerate()
+                                .for_each(|(i, x)| self.memory[i] = x);
+                        }
+                        Err(err) => {
+                            self.assembler_output = err.to_string();
+                            let err = match err {
+                                nom::Err::Error(x) => x,
+                                nom::Err::Failure(x) => x,
+                                _ => unreachable!(),
+                            };
+                            let characters_consumed = self.program.len() - err.input.len();
+
+                            let newlines = self
+                                .program
+                                .chars()
+                                .take(characters_consumed)
+                                .filter(|x| x == &'\n')
+                                .count();
+
+                            self.error_loc = Some(newlines);
+                        }
+                    }
+                }
+
+                ui.vertical_centered(|ui| {
+                    ui.heading("Output");
+                    ui.label(&self.assembler_output);
+                });
+            });
         });
 
         egui::Window::new("Memory").show(ctx, |ui| {
