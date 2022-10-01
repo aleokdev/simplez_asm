@@ -5,6 +5,8 @@ use eframe::{
 use simplez_assembler::nom;
 use simplez_common::Instruction;
 
+use crate::highlighter;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -56,23 +58,31 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
             ui.horizontal_top(|ui| {
+                let theme = highlighter::CodeTheme::from_memory(ui.ctx());
+
+                let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
+                    let mut layout_job = highlighter::highlight(ui.ctx(), &theme, string);
+                    layout_job.wrap.max_width = wrap_width;
+                    ui.fonts().layout_job(layout_job)
+                };
+
                 let textedit_response = ui.add(
                     TextEdit::multiline(&mut self.program)
                         .code_editor()
                         .desired_width(ui.available_width() / 2.)
-                        .desired_rows(40),
+                        .desired_rows(40)
+                        .layouter(&mut layouter),
                 );
 
                 if let Some(error_loc) = &mut self.error_loc {
                     let mut error_rect = textedit_response.rect;
-                    error_rect.min.y = error_rect.min.y
-                        + ui.text_style_height(&egui::TextStyle::Monospace) * *error_loc as f32;
-                    error_rect.set_height(ui.text_style_height(&egui::TextStyle::Monospace));
+                    error_rect.min.y = error_rect.min.y + 12. * *error_loc as f32;
+                    error_rect.set_height(12.);
 
                     ui.painter().rect_filled(
                         error_rect,
                         1.,
-                        ui.style().visuals.error_fg_color.linear_multiply(0.4),
+                        ui.style().visuals.error_fg_color.linear_multiply(0.1),
                     );
                 }
 

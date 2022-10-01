@@ -10,6 +10,7 @@ eframe = { version = "0.19.0", features = ["persistence"] }
 serde = { version = "1", features = ["derive"] }
 simplez_common = { path = "common" }
 simplez_assembler = { path = "assembler" }
+syntect = "5.0.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -4,12 +4,48 @@ name: Simplez
 file_extensions: [sz]
 scope: source.sz
 
+# Syntax: http://www.sublimetext.com/docs/syntax.html#include-syntax
+# Scope naming: https://www.sublimetext.com/docs/scope_naming.html#punctuation
+
 contexts:
   main:
-    - match: [a-zA-Z][a-zA-Z0-9]*
-      scope: label.sz
+    - match: "[a-zA-Z][a-zA-Z0-9]*"
+      scope: entity.name.label.sz
+      push: instruction
+    - match: "\\s"
       push: instruction
 
   instruction:
-    - match: \b(ld|st|add|br|bz|dec|clr|halt)\b
-      
+    - match: "(?i:\\b(ld|st|add|br|bz)\\b)"
+      scope: keyword.control.sz
+      push: param
+
+    - match: "(?i:\\b(org|data|res)\\b)"
+      scope: keyword.control.sz
+      push: param
+
+    - match: "(?i:\\b(dec|clr|halt)\\b)"
+      scope: keyword.control.sz
+
+    - match: "(?i:\\b(end)\\b)"
+      scope: keyword.control.sz
+
+    - match: ;
+      scope: punctuation.definition.comment.sz
+      push: comment
+
+    - match: "\n"
+      pop: true
+
+  param:
+    - match: "/?[0-9]+"
+      scope: constant.numeric.integer.decimal.sz
+      pop: true
+    - match: "/?[a-zA-Z][a-zA-Z0-9]*"
+      scope: entity.name.label.sz
+      pop: true
+
+  comment:
+    - match: "[^\\n]+"
+      scope: comment.line.sz
+      pop: 2
