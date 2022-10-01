@@ -1,5 +1,5 @@
 use eframe::{
-    egui::{self, Label, RichText, Slider, TextEdit},
+    egui::{self, Label, Layout, RichText, Slider, TextEdit},
     emath::vec2,
 };
 use simplez_assembler::nom;
@@ -23,7 +23,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             program: String::new(),
-            error_loc: Some(5),
+            error_loc: None,
             assembler_output: String::new(),
             memory: [0; 512],
         }
@@ -55,6 +55,52 @@ impl eframe::App for App {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::SidePanel::left("state_panel")
+            .resizable(false)
+            .default_width(400.)
+            .show(ctx, |ui| {
+                let heading_height = ui.text_style_height(&egui::TextStyle::Heading);
+                egui_extras::TableBuilder::new(ui)
+                    .striped(true)
+                    .cell_layout(egui::Layout::centered_and_justified(
+                        egui::Direction::LeftToRight,
+                    ))
+                    .columns(egui_extras::Size::relative(1. / 3.), 3)
+                    .resizable(true)
+                    .header(heading_height, |mut header| {
+                        header.col(|ui| {
+                            ui.heading("Address (DEC)");
+                        });
+                        header.col(|ui| {
+                            ui.heading("Contents (BIN)");
+                        });
+                        header.col(|ui| {
+                            ui.heading("Instruction");
+                        });
+                    })
+                    .body(|body| {
+                        body.rows(16., self.memory.len(), |addr, mut row| {
+                            let word = self.memory[addr];
+                            row.col(|ui| {
+                                ui.monospace(format!("[{}]", addr));
+                            });
+                            row.col(|ui| {
+                                ui.monospace(format!("{:012b}", word));
+                            });
+                            row.col(|ui| {
+                                ui.monospace(format!("{}", Instruction::from(word)));
+                            });
+                        });
+                    });
+            });
+
+        egui::SidePanel::right("assembler_panel").show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading("Output");
+                ui.label(&self.assembler_output);
+            });
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
             ui.horizontal_top(|ui| {
@@ -66,18 +112,46 @@ impl eframe::App for App {
                     ui.fonts().layout_job(layout_job)
                 };
 
-                let textedit_response = ui.add(
-                    TextEdit::multiline(&mut self.program)
-                        .code_editor()
-                        .desired_width(ui.available_width() / 2.)
-                        .desired_rows(40)
-                        .layouter(&mut layouter),
-                );
+                #[derive(Clone, Copy, Default)]
+                struct CodeLineCount(usize);
+                #[derive(Default)]
+                struct CodeLineCounter;
+                type CodeLineCache = egui::util::cache::FrameCache<CodeLineCount, CodeLineCounter>;
+
+                impl egui::util::cache::ComputerMut<&str, CodeLineCount> for CodeLineCounter {
+                    fn compute(&mut self, code: &str) -> CodeLineCount {
+                        CodeLineCount(code.chars().filter(|x| x == &'\n').count())
+                    }
+                }
+
+                let lines_of_code = ui
+                    .memory()
+                    .caches
+                    .cache::<CodeLineCache>()
+                    .get(&self.program)
+                    .0;
+
+                let textedit_response = egui::ScrollArea::vertical()
+                    .show(ui, |ui| {
+                        let amount_of_lines_that_fit =
+                            (ui.available_height() / highlighter::CODE_EDITOR_LINE_HEIGHT as f32)
+                                .floor() as usize;
+
+                        ui.add(
+                            TextEdit::multiline(&mut self.program)
+                                .code_editor()
+                                .desired_width(ui.available_width())
+                                .desired_rows(lines_of_code.max(amount_of_lines_that_fit))
+                                .layouter(&mut layouter),
+                        )
+                    })
+                    .inner;
 
                 if let Some(error_loc) = &mut self.error_loc {
                     let mut error_rect = textedit_response.rect;
-                    error_rect.min.y = error_rect.min.y + 12. * *error_loc as f32;
-                    error_rect.set_height(12.);
+                    error_rect.min.y =
+                        error_rect.min.y + highlighter::CODE_EDITOR_LINE_HEIGHT * *error_loc as f32;
+                    error_rect.set_height(highlighter::CODE_EDITOR_LINE_HEIGHT);
 
                     ui.painter().rect_filled(
                         error_rect,
@@ -117,34 +191,6 @@ impl eframe::App for App {
                         }
                     }
                 }
-
-                ui.vertical_centered(|ui| {
-                    ui.heading("Output");
-                    ui.label(&self.assembler_output);
-                });
-            });
-        });
-
-        egui::Window::new("Memory").show(ctx, |ui| {
-            egui::ScrollArea::vertical().show_viewport(ui, |ui, _viewport| {
-                egui::Grid::new("asm_grid")
-                    .num_columns(3)
-                    .spacing([4., 4.])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.heading("Address (DEC)");
-                        ui.heading("Contents (BIN)");
-                        ui.heading("Instruction");
-                        ui.end_row();
-                        for (addr, word) in self.memory.iter().enumerate() {
-                            ui.vertical_centered(|ui| ui.monospace(format!("[{}]", addr)));
-                            ui.vertical_centered(|ui| ui.monospace(format!("{:012b}", word)));
-                            ui.vertical_centered(|ui| {
-                                ui.monospace(format!("{}", Instruction::from(*word)))
-                            });
-                            ui.end_row();
-                        }
-                    });
             });
         });
     }

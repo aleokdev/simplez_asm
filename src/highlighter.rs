@@ -4,6 +4,8 @@ use syntect::parsing::SyntaxDefinition;
 
 type HighlightCache = egui::util::cache::FrameCache<LayoutJob, Highlighter>;
 
+pub const CODE_EDITOR_LINE_HEIGHT: f32 = 16.;
+
 /// Memoized Code highlighting
 pub fn highlight(ctx: &egui::Context, theme: &CodeTheme, code: &str) -> LayoutJob {
     impl egui::util::cache::ComputerMut<(&CodeTheme, &str), LayoutJob> for Highlighter {
@@ -177,7 +179,7 @@ impl Highlighter {
             // Fallback:
             LayoutJob::simple(
                 code.into(),
-                egui::FontId::monospace(12.0),
+                egui::FontId::monospace(CODE_EDITOR_LINE_HEIGHT),
                 if theme.dark_mode {
                     egui::Color32::LIGHT_GRAY
                 } else {
@@ -223,7 +225,7 @@ impl Highlighter {
                     leading_space: 0.0,
                     byte_range: as_byte_range(text, range),
                     format: TextFormat {
-                        font_id: egui::FontId::monospace(12.0),
+                        font_id: egui::FontId::monospace(CODE_EDITOR_LINE_HEIGHT),
                         color: text_color,
                         italics,
                         underline,

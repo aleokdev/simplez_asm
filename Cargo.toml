@@ -10,7 +10,11 @@ eframe = { version = "0.19.0", features = ["persistence"] }
 serde = { version = "1", features = ["derive"] }
 simplez_common = { path = "common" }
 simplez_assembler = { path = "assembler" }
-syntect = "5.0.0"
+syntect = { version = "5.0.0", default-features = false, features = [
+    # Use Rust regex impl instead of an external C lib
+    "default-fancy",
+] }
+egui_extras = "0.19.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -26,3 +30,7 @@ opt-level = 2 # fast and small wasm
 
 [workspace]
 members = ["assembler", "common"]
+
+# Syntect with the default-fancy feature is really slow on debug, so compile with opts
+[profile.dev.package.syntect]
+opt-level = 2
