@@ -243,8 +243,6 @@ pub fn assemble<'s>(input: &'s str) -> IResult<&str, [u16; 512], Error<&str>> {
         }
     };
 
-    dbg!(&labels);
-
     let mut memory = [0; 512];
     let mut current_addr = Address(0);
 
