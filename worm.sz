@@ -1,0 +1,40 @@
+        ORG    0
+        BR    /START
+N       DATA   14      ;SCROLLING VARIABLES
+I       RES    1
+CONT    DATA   0    
+OLD     DATA   22      ;POSITION VARIABLES
+LOOP    DATA   28
+DIR     RES    1       ;CPY PARAMETER
+BRKEY   DATA   1536    ;=BR/0
+LDKEY   DATA   512     ;=LD/0
+STAD    DATA   3597    ;=ST/(n+N-1)-LD/n
+CPY     LD    /LDKEY   ;CPY FUNCTION
+        ADD   /DIR     ;Address prep for LD and ST
+        ST    /LDEX
+        ADD   /STAD
+        ST    /STEX
+LDEX    RES    1       ;Store requested copy in
+STEX    RES    1       ;new address
+        LD    /BRKEY
+        ADD   /LOOP
+        ADD   /CONT
+        ST    /BREX    
+BREX    RES    1       ;Branch to loop begining
+        LD    /N       ;Updates initial conditions
+        DEC
+START   ADD   /CONT    ;Stores modified CONT
+        ST    /CONT    ;(starts at 0)
+        LD    /N       ;I initial cond.
+        ST    /I
+        LD    /I       ;Loop begining
+        DEC
+        ST    /I
+        LD    /OLD     ;Address calculations
+        ADD   /I       ;for CPY
+        ADD   /CONT
+        ST    /DIR
+        BR    /CPY     ;Function branch
+        DATA   585     ;The loop ends by replacing
+        RES    500     ;BR/CPY with the nexts loop's
+        END            ;initial conditions
