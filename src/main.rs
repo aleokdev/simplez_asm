@@ -3,7 +3,6 @@
 
 mod app;
 mod highlighter;
-mod util;
 
 use app::App;
 

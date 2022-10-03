@@ -1517,6 +1517,9 @@ dependencies = [
 [[package]]
 name = "simplez_common"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "simplez_gui"
@@ -1528,9 +1531,18 @@ dependencies = [
  "serde",
  "simplez_assembler",
  "simplez_common",
+ "simplez_interpreter",
  "syntect",
  "tracing-subscriber",
  "tracing-wasm",
+]
+
+[[package]]
+name = "simplez_interpreter"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "simplez_common",
 ]
 
 [[package]]

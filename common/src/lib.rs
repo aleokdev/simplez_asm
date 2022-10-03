@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-#[derive(Clone, Copy, Debug)]
+pub mod util;
+
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Instruction<Addr = Address> {
     Store { address: Addr },
     Load { address: Addr },
@@ -45,7 +47,7 @@ impl Display for Instruction<Address> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Address(pub u16);
 
 impl Address {

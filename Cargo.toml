@@ -10,6 +10,7 @@ eframe = { version = "0.19.0", features = ["persistence"] }
 serde = { version = "1", features = ["derive"] }
 simplez_common = { path = "common" }
 simplez_assembler = { path = "assembler" }
+simplez_interpreter = { path = "interpreter" }
 syntect = { version = "5.0.0", default-features = false, features = [
     # Use Rust regex impl instead of an external C lib
     "default-fancy",
@@ -29,7 +30,7 @@ tracing-wasm = "0.2"
 opt-level = 2 # fast and small wasm
 
 [workspace]
-members = ["assembler", "common"]
+members = ["assembler", "common", "interpreter"]
 
 # Syntect with the default-fancy feature is really slow on debug, so compile with opts
 [profile.dev.package.syntect]

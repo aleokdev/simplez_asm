@@ -1,7 +1,4 @@
-use eframe::{
-    egui::{self, Label, Layout, RichText, Slider, TextEdit},
-    emath::vec2,
-};
+use eframe::egui::{self, TextEdit};
 use simplez_assembler::nom;
 use simplez_common::Instruction;
 
@@ -14,9 +11,12 @@ pub struct App {
     program: String,
     assembler_output: String,
     error_loc: Option<usize>,
+    context: simplez_interpreter::ExecutionContext,
 
-    #[serde(with = "crate::util::arrays")]
-    memory: [u16; 512],
+    #[serde(skip)]
+    executing: bool,
+    #[serde(skip)]
+    ran_program: bool,
 }
 
 impl Default for App {
@@ -25,7 +25,10 @@ impl Default for App {
             program: String::new(),
             error_loc: None,
             assembler_output: String::new(),
-            memory: [0; 512],
+            context: Default::default(),
+
+            executing: false,
+            ran_program: false,
         }
     }
 }
@@ -56,17 +59,84 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::left("state_panel")
-            .resizable(false)
+            .resizable(true)
             .default_width(400.)
             .show(ctx, |ui| {
+                ui.vertical_centered(|ui| ui.heading("Registers"));
                 let heading_height = ui.text_style_height(&egui::TextStyle::Heading);
+                ui.push_id("registers", |ui| {
+                    egui_extras::TableBuilder::new(ui)
+                        .striped(true)
+                        .cell_layout(egui::Layout::centered_and_justified(
+                            egui::Direction::LeftToRight,
+                        ))
+                        .columns(egui_extras::Size::relative(1. / 3.), 3)
+                        .header(heading_height, |mut header| {
+                            header.col(|ui| {
+                                ui.heading("ACC (Z)");
+                            });
+                            header.col(|ui| {
+                                ui.heading("PC");
+                            });
+                            header.col(|ui| {
+                                ui.heading("IR");
+                            });
+                        })
+                        .body(|mut body| {
+                            body.row(16., |mut row| {
+                                row.col(|ui| {
+                                    ui.monospace(format!(
+                                        "{} ({})",
+                                        self.context.acc,
+                                        self.context.zero() as u8
+                                    ));
+                                });
+                                row.col(|ui| {
+                                    ui.monospace(format!("[{}]", self.context.pc.0));
+                                });
+                                row.col(|ui| {
+                                    ui.monospace(format!(
+                                        "{} ({})",
+                                        self.context.ir,
+                                        Instruction::from(self.context.ir)
+                                    ));
+                                });
+                            });
+                        });
+                });
+
+                ui.vertical_centered(|ui| ui.heading("Execution"));
+                ui.horizontal(|ui| {
+                    if ui
+                        .button(if self.executing { "Pause" } else { "Run" })
+                        .clicked()
+                    {
+                        self.executing = !self.executing;
+                    }
+                    if ui.button("Reset").clicked() {
+                        self.context.reset_registers();
+                    }
+                    if ui
+                        .add_enabled(!self.executing, egui::Button::new("Step"))
+                        .clicked()
+                    {
+                        self.ran_program = true;
+                        self.context.step();
+                    }
+                });
+
+                ui.vertical_centered(|ui| ui.heading("Memory"));
+                let text_color = ui.style().visuals.text_color();
+                let mut loc_rect = ui.available_rect_before_wrap();
+                let mut render_loc_rect = false;
                 egui_extras::TableBuilder::new(ui)
                     .striped(true)
                     .cell_layout(egui::Layout::centered_and_justified(
                         egui::Direction::LeftToRight,
                     ))
-                    .columns(egui_extras::Size::relative(1. / 3.), 3)
-                    .resizable(true)
+                    .column(egui_extras::Size::relative(1. / 3.))
+                    .column(egui_extras::Size::remainder())
+                    .column(egui_extras::Size::relative(1. / 3.))
                     .header(heading_height, |mut header| {
                         header.col(|ui| {
                             ui.heading("Address (DEC)");
@@ -79,19 +149,63 @@ impl eframe::App for App {
                         });
                     })
                     .body(|body| {
-                        body.rows(16., self.memory.len(), |addr, mut row| {
-                            let word = self.memory[addr];
+                        body.rows(16., self.context.memory().len(), |addr, mut row| {
+                            let word = self.context.memory()[addr];
+                            let color = self
+                                .context
+                                .last_modifications()
+                                .iter()
+                                .enumerate()
+                                .find(|(_, a)| addr == a.0 as usize)
+                                .map(|(idx, _)| {
+                                    let color1 = egui::Rgba::from(text_color);
+                                    let color2 = egui::Rgba::from(egui::Color32::RED);
+                                    let f = idx as f32 / 5.;
+                                    egui::Color32::from(egui::Rgba::from_rgb(
+                                        color1.r() * f + color2.r() * (1. - f),
+                                        color1.g() * f + color2.g() * (1. - f),
+                                        color1.b() * f + color2.b() * (1. - f),
+                                    ))
+                                })
+                                .unwrap_or(text_color);
                             row.col(|ui| {
-                                ui.monospace(format!("[{}]", addr));
+                                let response = ui.monospace(format!("[{}]", addr));
+
+                                if addr == self.context.pc.0 as usize {
+                                    loc_rect.min.y = response.rect.min.y;
+                                    loc_rect.set_height(response.rect.height());
+                                    render_loc_rect = true;
+                                }
                             });
                             row.col(|ui| {
-                                ui.monospace(format!("{:012b}", word));
+                                ui.label(
+                                    egui::RichText::new(format!("{:012b}", word))
+                                        .monospace()
+                                        .color(color),
+                                );
                             });
                             row.col(|ui| {
-                                ui.monospace(format!("{}", Instruction::from(word)));
+                                ui.label(
+                                    egui::RichText::new(format!("{}", Instruction::from(word)))
+                                        .monospace()
+                                        .color(color),
+                                );
                             });
                         });
                     });
+
+                if render_loc_rect {
+                    ui.painter().rect_filled(
+                        loc_rect,
+                        1.,
+                        ui.style()
+                            .visuals
+                            .widgets
+                            .active
+                            .bg_fill
+                            .linear_multiply(0.7),
+                    );
+                }
             });
 
         egui::SidePanel::right("assembler_panel").show(ctx, |ui| {
@@ -103,7 +217,7 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
-            ui.horizontal_top(|ui| {
+            ui.add_enabled_ui(!self.ran_program, |ui| {
                 let theme = highlighter::CodeTheme::from_memory(ui.ctx());
 
                 let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
@@ -161,37 +275,60 @@ impl eframe::App for App {
                 }
 
                 if textedit_response.changed() {
-                    match simplez_assembler::assemble(&self.program) {
-                        Ok(res) => {
-                            self.memory = [0; 512];
-                            self.assembler_output = "Successfully assembled program.".to_owned();
-                            self.error_loc = None;
-                            res.1
-                                .into_iter()
-                                .enumerate()
-                                .for_each(|(i, x)| self.memory[i] = x);
-                        }
-                        Err(err) => {
-                            self.assembler_output = err.to_string();
-                            let err = match err {
-                                nom::Err::Error(x) => x,
-                                nom::Err::Failure(x) => x,
-                                _ => unreachable!(),
-                            };
-                            let characters_consumed = self.program.len() - err.input.len();
-
-                            let newlines = self
-                                .program
-                                .chars()
-                                .take(characters_consumed)
-                                .filter(|x| x == &'\n')
-                                .count();
-
-                            self.error_loc = Some(newlines);
-                        }
-                    }
+                    self.assemble_program();
                 }
             });
+            if self.ran_program {
+                egui::Window::new("Reassemble program")
+                    .anchor(egui::Align2::CENTER_CENTER, [0., 0.])
+                    .title_bar(false)
+                    .show(ctx, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.heading("Program has been ran since last assembly.");
+                            if ui.button("Click here to reassemble.").clicked() {
+                                self.ran_program = false;
+                                self.context.reset_registers();
+                                self.assemble_program();
+                            }
+                        })
+                    });
+            }
         });
+
+        if self.executing {
+            self.ran_program = true;
+            self.context.step();
+            ctx.request_repaint();
+        }
+    }
+}
+
+impl App {
+    fn assemble_program(&mut self) {
+        match simplez_assembler::assemble(&self.program) {
+            Ok(res) => {
+                self.context.set_memory(res.1);
+                self.assembler_output = "Successfully assembled program.".to_owned();
+                self.error_loc = None;
+            }
+            Err(err) => {
+                self.assembler_output = err.to_string();
+                let err = match err {
+                    nom::Err::Error(x) => x,
+                    nom::Err::Failure(x) => x,
+                    _ => unreachable!(),
+                };
+                let characters_consumed = self.program.len() - err.input.len();
+
+                let newlines = self
+                    .program
+                    .chars()
+                    .take(characters_consumed)
+                    .filter(|x| x == &'\n')
+                    .count();
+
+                self.error_loc = Some(newlines);
+            }
+        }
     }
 }
