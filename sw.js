@@ -1,4 +1,4 @@
-var cacheName = 'egui-template-pwa';
+var cacheName = 'simplez-interpreter';
 var filesToCache = [
     './',
     './index.html',
