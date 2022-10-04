@@ -1,4 +1,8 @@
 use std::fmt::Display;
+use std::ops::{Index, IndexMut};
+
+use twelve_bit::u12;
+use twelve_bit::u12::*;
 
 pub mod util;
 
@@ -14,11 +18,11 @@ pub enum Instruction<Addr = Address> {
     Halt,
 }
 
-impl From<u16> for Instruction<Address> {
-    fn from(val: u16) -> Self {
-        let ins = (val >> 9) & 0o7;
-        let param = Address(val & 0o777);
-        match ins {
+impl From<U12> for Instruction<Address> {
+    fn from(val: U12) -> Self {
+        let ins: U12 = (val >> 9) & u12!(0o7);
+        let param = Address(val & u12!(0o777));
+        match u16::from(ins) {
             0 => Instruction::Store { address: param },
             1 => Instruction::Load { address: param },
             2 => Instruction::Add { address: param },
@@ -48,14 +52,39 @@ impl Display for Instruction<Address> {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Address(pub u16);
-
-impl Address {
-    pub const ZERO: Self = Self(0);
-}
+pub struct Address(pub U12);
 
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("/{}", self.0))
+        f.write_fmt(format_args!("/{}", u16::from(self.0)))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Memory(#[serde(with = "util::arrays")] pub [U12; 512]);
+
+impl Default for Memory {
+    fn default() -> Self {
+        Self([u12!(0); 512])
+    }
+}
+
+impl Index<Address> for Memory {
+    type Output = U12;
+
+    fn index(&self, index: Address) -> &Self::Output {
+        &self.0[usize::from(index.0)]
+    }
+}
+
+impl IndexMut<Address> for Memory {
+    fn index_mut(&mut self, index: Address) -> &mut Self::Output {
+        &mut self.0[usize::from(index.0)]
+    }
+}
+
+impl Memory {
+    pub fn iter(&self) -> std::slice::Iter<U12> {
+        self.0.iter()
     }
 }

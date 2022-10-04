@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
+twelve_bit = { git = "https://github.com/aleokdev/12bit", features = ["serde"] }

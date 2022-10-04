@@ -1,6 +1,7 @@
 use eframe::egui::{self, TextEdit};
 use simplez_assembler::nom;
-use simplez_common::Instruction;
+use simplez_common::{Address, Instruction};
+use twelve_bit::u12::U12;
 
 use crate::highlighter;
 
@@ -87,17 +88,17 @@ impl eframe::App for App {
                                 row.col(|ui| {
                                     ui.monospace(format!(
                                         "{} ({})",
-                                        self.context.acc,
+                                        u16::from(self.context.acc),
                                         self.context.zero() as u8
                                     ));
                                 });
                                 row.col(|ui| {
-                                    ui.monospace(format!("[{}]", self.context.pc.0));
+                                    ui.monospace(format!("[{}]", u16::from(self.context.pc.0)));
                                 });
                                 row.col(|ui| {
                                     ui.monospace(format!(
                                         "{} ({})",
-                                        self.context.ir,
+                                        u16::from(self.context.ir),
                                         Instruction::from(self.context.ir)
                                     ));
                                 });
@@ -149,14 +150,15 @@ impl eframe::App for App {
                         });
                     })
                     .body(|body| {
-                        body.rows(16., self.context.memory().len(), |addr, mut row| {
+                        body.rows(16., self.context.memory().0.len(), |addr, mut row| {
+                            let addr = Address(U12::from_u16(addr as u16));
                             let word = self.context.memory()[addr];
                             let color = self
                                 .context
                                 .last_modifications()
                                 .iter()
                                 .enumerate()
-                                .find(|(_, a)| addr == a.0 as usize)
+                                .find(|(_, a)| addr == **a)
                                 .map(|(idx, _)| {
                                     let color1 = egui::Rgba::from(text_color);
                                     let color2 = egui::Rgba::from(egui::Color32::RED);
@@ -171,7 +173,7 @@ impl eframe::App for App {
                             row.col(|ui| {
                                 let response = ui.monospace(format!("[{}]", addr));
 
-                                if addr == self.context.pc.0 as usize {
+                                if addr == self.context.pc {
                                     loc_rect.min.y = response.rect.min.y;
                                     loc_rect.set_height(response.rect.height());
                                     render_loc_rect = true;
@@ -179,7 +181,7 @@ impl eframe::App for App {
                             });
                             row.col(|ui| {
                                 ui.label(
-                                    egui::RichText::new(format!("{:012b}", word))
+                                    egui::RichText::new(format!("{:012b}", u16::from(word)))
                                         .monospace()
                                         .color(color),
                                 );

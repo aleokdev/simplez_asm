@@ -9,3 +9,4 @@ edition = "2021"
 nom = "7.1.1"
 simplez_common = { path = "../common" }
 thiserror = "1.0.37"
+twelve_bit = { git = "https://github.com/aleokdev/12bit" }

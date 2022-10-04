@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ops::BitAnd;
+use std::str::FromStr;
 
 use nom::branch::alt;
 use nom::bytes::complete::{is_a, is_not, tag};
@@ -15,6 +17,8 @@ use simplez_common::*;
 use thiserror::Error;
 
 pub use nom;
+use twelve_bit::u12;
+use twelve_bit::u12::*;
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -59,8 +63,8 @@ pub enum Direction<'s> {
 
 pub enum Directive {
     Org { address: Address },
-    Data { value: u16 },
-    Reserve { amount: u16 },
+    Data { value: U12 },
+    Reserve { amount: U12 },
     End,
 }
 
@@ -92,9 +96,16 @@ pub fn parse_direction<'s>(input: &'s str) -> IResult<&str, Direction<'s>, Error
         opt(tag("/")),
         alt((
             map(parse_label, |label| Direction::Label(label)),
-            map(digit1, |addr: &str| {
-                Direction::Address(Address(addr.parse::<u16>().unwrap()))
-            }),
+            map(
+                pair(opt(tag("-")), digit1),
+                |(sign, addr): (Option<&str>, &str)| {
+                    if let Some(_sign) = sign {
+                        Direction::Address(Address(u12!(4096) - addr.parse::<U12>().unwrap()))
+                    } else {
+                        Direction::Address(Address(addr.parse::<U12>().unwrap()))
+                    }
+                },
+            ),
         )),
     )(input)
 }
@@ -199,7 +210,7 @@ pub fn parse_assembly_line<'s>(input: &'s str) -> IResult<&str, AssemblyLine<'s>
     ))
 }
 
-pub fn assemble<'s>(input: &'s str) -> IResult<&str, [u16; 512], Error<&str>> {
+pub fn assemble<'s>(input: &'s str) -> IResult<&str, Memory, Error<&str>> {
     let mut labels = HashMap::new();
     let lines = preceded(
         many0(newline),
@@ -207,7 +218,7 @@ pub fn assemble<'s>(input: &'s str) -> IResult<&str, [u16; 512], Error<&str>> {
     )(input)?
     .1;
     {
-        let mut current_addr = Address::ZERO;
+        let mut current_addr = Address::default();
         for line in lines.iter() {
             if let Some(label) = line.label {
                 if labels.contains_key(&label) {
@@ -223,7 +234,7 @@ pub fn assemble<'s>(input: &'s str) -> IResult<&str, [u16; 512], Error<&str>> {
             match line.command {
                 Some(Command::Directive(Directive::Org { address })) => current_addr = address,
                 Some(Command::Directive(Directive::Reserve { amount })) => current_addr.0 += amount,
-                Some(_) => current_addr.0 += 1,
+                Some(_) => current_addr.0 += u12!(1),
                 None => (),
             }
         }
@@ -243,37 +254,37 @@ pub fn assemble<'s>(input: &'s str) -> IResult<&str, [u16; 512], Error<&str>> {
         }
     };
 
-    let mut memory = [0; 512];
-    let mut current_addr = Address(0);
+    let mut memory = Memory::default();
+    let mut current_addr = Address::default();
 
     for command in lines.into_iter().filter_map(|line| line.command) {
         match command {
             Command::Instruction(instruction) => {
-                memory[current_addr.0 as usize] = match instruction {
-                    Instruction::Store { address } => convert_direction(address)?.0 & 0o777,
+                memory[current_addr] = match instruction {
+                    Instruction::Store { address } => convert_direction(address)?.0 & u12!(0o777),
                     Instruction::Load { address } => {
-                        (1 << 9) | convert_direction(address)?.0 & 0o777
+                        u12!(1 << 9) | convert_direction(address)?.0 & u12!(0o777)
                     }
                     Instruction::Add { address } => {
-                        (2 << 9) | convert_direction(address)?.0 & 0o777
+                        u12!(2 << 9) | convert_direction(address)?.0 & u12!(0o777)
                     }
                     Instruction::Branch { address } => {
-                        (3 << 9) | convert_direction(address)?.0 & 0o777
+                        u12!(3 << 9) | convert_direction(address)?.0 & u12!(0o777)
                     }
                     Instruction::BranchIfZero { address } => {
-                        (4 << 9) | convert_direction(address)?.0 & 0o777
+                        u12!(4 << 9) | convert_direction(address)?.0 & u12!(0o777)
                     }
-                    Instruction::Clear => 5 << 9,
-                    Instruction::Decrease => 6 << 9,
-                    Instruction::Halt => 7 << 9,
+                    Instruction::Clear => u12!(5 << 9),
+                    Instruction::Decrease => u12!(6 << 9),
+                    Instruction::Halt => u12!(7 << 9),
                 };
-                current_addr.0 += 1;
+                current_addr.0 += u12!(1);
             }
             Command::Directive(directive) => match directive {
                 Directive::Org { address } => current_addr = address,
                 Directive::Data { value } => {
-                    memory[current_addr.0 as usize] = value;
-                    current_addr.0 += 1;
+                    memory[current_addr] = value;
+                    current_addr.0 += u12!(1);
                 }
                 Directive::Reserve { amount } => current_addr.0 += amount,
                 Directive::End => return Ok((input, memory)),
@@ -295,7 +306,7 @@ fn test() {
     for line in lines {
         let asm_instruction = parse_assembly_line(line).ok().map(|line| line.1.command);
         if asm_instruction.is_some() {
-            println!("{:04o} {}", words.next().unwrap(), line);
+            println!("{:04o} {}", u16::from(*words.next().unwrap()), line);
         } else {
             println!("     {}", line);
         }

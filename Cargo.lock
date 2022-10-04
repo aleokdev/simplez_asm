@@ -1512,6 +1512,7 @@ dependencies = [
  "nom",
  "simplez_common",
  "thiserror",
+ "twelve_bit",
 ]
 
 [[package]]
@@ -1519,6 +1520,7 @@ name = "simplez_common"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "twelve_bit",
 ]
 
 [[package]]
@@ -1535,6 +1537,7 @@ dependencies = [
  "syntect",
  "tracing-subscriber",
  "tracing-wasm",
+ "twelve_bit",
 ]
 
 [[package]]
@@ -1543,6 +1546,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "simplez_common",
+ "twelve_bit",
 ]
 
 [[package]]
@@ -1556,9 +1560,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fd0db749597d91ff862fd1d55ea87f7855a744a8425a64695b6fca237d1dad1"
+checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
 name = "smithay-client-toolkit"
@@ -1666,9 +1670,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3f9a28b618c3a6b9251b6908e9c99e04b9e5c02e6581ccbb67d59c34ef7f9b"
+checksum = "d634a985c4d4238ec39cacaed2e7ae552fbd3c476b552c1deac3021b7d7eaf0c"
 dependencies = [
  "itoa",
  "libc",
@@ -1798,6 +1802,14 @@ name = "ttf-parser"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b3e06c9b9d80ed6b745c7159c40b311ad2916abb34a49e9be2653b90db0d8dd"
+
+[[package]]
+name = "twelve_bit"
+version = "0.1.0"
+source = "git+https://github.com/aleokdev/12bit#fdaac122c4c43b3d2d42e35b4d74fcf644f326b9"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "unicode-bidi"
