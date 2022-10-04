@@ -3,25 +3,25 @@
     "short_name": "simplez-interpreter",
     "icons": [
         {
-            "src": "./icon-256.png",
+            "src": "./simplez_asm/icon-256.png",
             "sizes": "256x256",
             "type": "image/png"
         },
         {
-            "src": "./maskable_icon_x512.png",
+            "src": "./simplez_asm/maskable_icon_x512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
         },
         {
-            "src": "./icon-1024.png",
+            "src": "./simplez_asm/icon-1024.png",
             "sizes": "1024x1024",
             "type": "image/png"
         }
     ],
     "lang": "en-US",
-    "id": "/index.html",
-    "start_url": "./index.html",
+    "id": "/simplez_asm/index.html",
+    "start_url": "./simplez_asm/index.html",
     "display": "standalone",
     "background_color": "white",
     "theme_color": "white"
