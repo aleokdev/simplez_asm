@@ -1,17 +1,21 @@
 use eframe::egui::{self, TextEdit};
-use simplez_assembler::nom;
 use simplez_common::{Address, Instruction};
 use twelve_bit::u12::U12;
 
 use crate::highlighter;
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct AssemblerError {
+    loc: usize,
+    description: String,
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
     program: String,
-    assembler_output: String,
-    error_loc: Option<usize>,
+    assembler_err: Option<AssemblerError>,
     context: simplez_interpreter::ExecutionContext,
 
     #[serde(skip)]
@@ -24,8 +28,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             program: String::new(),
-            error_loc: None,
-            assembler_output: String::new(),
+            assembler_err: None,
             context: Default::default(),
 
             executing: false,
@@ -210,13 +213,6 @@ impl eframe::App for App {
                 }
             });
 
-        egui::SidePanel::right("assembler_panel").show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.heading("Output");
-                ui.label(&self.assembler_output);
-            });
-        });
-
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
             ui.add_enabled_ui(!self.ran_program, |ui| {
@@ -263,12 +259,14 @@ impl eframe::App for App {
                     })
                     .inner;
 
-                if let Some(error_loc) = &mut self.error_loc {
+                if let Some(err) = &mut self.assembler_err {
                     let mut error_rect = textedit_response.rect;
                     error_rect.min.y =
-                        error_rect.min.y + highlighter::CODE_EDITOR_LINE_HEIGHT * *error_loc as f32;
+                        error_rect.min.y + highlighter::CODE_EDITOR_LINE_HEIGHT * err.loc as f32;
                     error_rect.set_height(highlighter::CODE_EDITOR_LINE_HEIGHT);
 
+                    ui.allocate_rect(error_rect, egui::Sense::hover())
+                        .on_hover_text(&err.description);
                     ui.painter().rect_filled(
                         error_rect,
                         1.,
@@ -289,6 +287,7 @@ impl eframe::App for App {
                             ui.heading("Program has been ran since last assembly.");
                             if ui.button("Click here to reassemble.").clicked() {
                                 self.ran_program = false;
+                                self.executing = false;
                                 self.context.reset_registers();
                                 self.assemble_program();
                             }
@@ -309,17 +308,10 @@ impl App {
     fn assemble_program(&mut self) {
         match simplez_assembler::assemble(&self.program) {
             Ok(res) => {
-                self.context.set_memory(res.1);
-                self.assembler_output = "Successfully assembled program.".to_owned();
-                self.error_loc = None;
+                self.context.set_memory(res);
+                self.assembler_err = None;
             }
             Err(err) => {
-                self.assembler_output = err.to_string();
-                let err = match err {
-                    nom::Err::Error(x) => x,
-                    nom::Err::Failure(x) => x,
-                    _ => unreachable!(),
-                };
                 let characters_consumed = self.program.len() - err.input.len();
 
                 let newlines = self
@@ -329,7 +321,10 @@ impl App {
                     .filter(|x| x == &'\n')
                     .count();
 
-                self.error_loc = Some(newlines);
+                self.assembler_err = Some(AssemblerError {
+                    description: format!("{:?}", err),
+                    loc: newlines,
+                });
             }
         }
     }
