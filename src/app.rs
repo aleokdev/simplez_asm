@@ -245,18 +245,40 @@ impl eframe::App for App {
 
                 let textedit_response = egui::ScrollArea::vertical()
                     .show(ui, |ui| {
-                        let amount_of_lines_that_fit =
-                            (ui.available_height() / highlighter::CODE_EDITOR_LINE_HEIGHT as f32)
-                                .floor() as usize;
+                        ui.horizontal_top(|ui| {
+                            let mut style = (**ui.style()).clone();
+                            style.spacing.item_spacing.y = 0.;
+                            ui.set_style(style);
+                            egui_extras::TableBuilder::new(ui)
+                                .column(egui_extras::Size::exact(20.)).scroll(false).clip(false).striped(true)
+                                .body(|mut body| {
+                                    body.rows(
+                                        highlighter::CODE_EDITOR_LINE_HEIGHT,
+                                        lines_of_code,
+                                        |row_index, mut row| {
+                                            row.col(|ui| {
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(
+                                                        egui::Align::Max,
+                                                    ),
+                                                    |ui| ui.label(egui::RichText::new(format!("{}", row_index + 1)).font(egui::FontId::monospace(highlighter::CODE_EDITOR_LINE_HEIGHT))),
+                                                );
+                                            });
+                                        },
+                                    )
+                                });
 
-                        ui.add(
-                            TextEdit::multiline(&mut self.program)
-                                .code_editor()
-                                .desired_width(ui.available_width())
-                                .desired_rows(lines_of_code.max(amount_of_lines_that_fit))
-                                .layouter(&mut layouter),
-                        )
+                            ui.add(
+                                TextEdit::multiline(&mut self.program)
+                                    .code_editor()
+                                    .desired_width(ui.available_width())
+                                    .desired_rows(10)
+                                    .frame(false)
+                                    .layouter(&mut layouter),
+                            )
+                        })
                     })
+                    .inner
                     .inner;
 
                 if let Some(err) = &mut self.assembler_err {

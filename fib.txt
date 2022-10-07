@@ -1,0 +1,40 @@
+       org 0
+	
+       br /inicio
+
+uno    data 1 ; Constante de valor 1 almacenada en memoria
+k      data 6 ; Número de elementos de la serie a sumar
+ult    res 1  ; Variable para el último elemento en cada iteración: f(n-1)
+pen    res 1  ; Variable para el penúltimo elemento en cada iteración: f(n-2)
+nue    res 1  ; Variable para calcular el nuevo término de la serie en cada iteración: f(n)
+suma   res 1  ; Variable para acumular la suma de los términos
+cont   res 1  ; Contador del número de iteraciones
+
+inicio ld /k     ; Si k == 0, no hay nada que hacer: f(0) = 0
+       bz /fin
+       dec       ; Comenzar el contador en k-1
+       st /cont
+
+       ld /uno   ; f(1) = 1
+       st /nue
+buclek add /suma ; Añadir f(n) a la SUMA de términos
+       st /suma
+
+       ld /cont  ; Salir del bucle si cont == 0
+       bz /fin
+       dec       ; Decrementar cont y guardarlo de nuevo si no
+       st /cont
+
+       ld /ult   ; Mover f(n) -> f(n-1) -> f(n-2)
+       st /pen
+
+       ld /nue
+       st /ult
+
+       add /pen  ; Establecer f(n) = f(n-1) + f(n-2)
+       st /nue
+
+       br /buclek
+
+fin    halt
+       end
