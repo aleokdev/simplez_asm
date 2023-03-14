@@ -1,4 +1,7 @@
-use eframe::egui::{self, TextEdit};
+use eframe::{
+    egui::{self, TextEdit},
+    epaint::vec2,
+};
 use simplez_common::{Address, Instruction};
 use twelve_bit::u12::U12;
 
@@ -224,52 +227,60 @@ impl eframe::App for App {
                     ui.fonts().layout_job(layout_job)
                 };
 
-                #[derive(Clone, Copy, Default)]
-                struct CodeLineCount(usize);
                 #[derive(Default)]
-                struct CodeLineCounter;
-                type CodeLineCache = egui::util::cache::FrameCache<CodeLineCount, CodeLineCounter>;
+                struct EditorCodeLineCounter;
+                type EditorCodeLineCache =
+                    egui::util::cache::FrameCache<usize, EditorCodeLineCounter>;
 
-                impl egui::util::cache::ComputerMut<&str, CodeLineCount> for CodeLineCounter {
-                    fn compute(&mut self, code: &str) -> CodeLineCount {
-                        CodeLineCount(code.chars().filter(|x| x == &'\n').count())
+                impl egui::util::cache::ComputerMut<&str, usize> for EditorCodeLineCounter {
+                    fn compute(&mut self, code: &str) -> usize {
+                        code.chars().filter(|x| x == &'\n').count() + 1
                     }
                 }
 
                 let lines_of_code = ui
                     .memory()
                     .caches
-                    .cache::<CodeLineCache>()
-                    .get(&self.program)
-                    .0;
+                    .cache::<EditorCodeLineCache>()
+                    .get(&self.program);
+
+                fn lines_of_code_widget(lines_of_code: usize) -> impl egui::Widget {
+                    move |ui: &mut egui::Ui| {
+                        let style = ui.style();
+                        let text_color = style.visuals.widgets.noninteractive.text_color();
+                        let widget_width =
+                            ui.fonts().glyph_width(&egui::FontId::monospace(20.), '0') * 4.;
+                        let (response, painter) = ui.allocate_painter(
+                            vec2(
+                                widget_width,
+                                highlighter::CODE_EDITOR_LINE_HEIGHT * lines_of_code as f32,
+                            ),
+                            egui::Sense::hover(),
+                        );
+                        let rect = response.rect;
+                        for i in 1..=lines_of_code {
+                            painter.text(
+                                rect.right_top()
+                                    + vec2(0., highlighter::CODE_EDITOR_LINE_HEIGHT * i as f32),
+                                egui::Align2::RIGHT_BOTTOM,
+                                i.to_string(),
+                                egui::FontId::monospace(highlighter::CODE_EDITOR_LINE_HEIGHT),
+                                text_color,
+                            );
+                        }
+                        response
+                    }
+                }
 
                 let textedit_response = egui::ScrollArea::vertical()
                     .show(ui, |ui| {
                         ui.horizontal_top(|ui| {
-                            let mut style = (**ui.style()).clone();
-                            style.spacing.item_spacing.y = 0.;
-                            ui.set_style(style);
-                            egui_extras::TableBuilder::new(ui)
-                                .column(egui_extras::Size::exact(20.)).scroll(false).clip(false).striped(true)
-                                .body(|mut body| {
-                                    body.rows(
-                                        highlighter::CODE_EDITOR_LINE_HEIGHT,
-                                        lines_of_code,
-                                        |row_index, mut row| {
-                                            row.col(|ui| {
-                                                ui.with_layout(
-                                                    egui::Layout::right_to_left(
-                                                        egui::Align::Max,
-                                                    ),
-                                                    |ui| ui.label(egui::RichText::new(format!("{}", row_index + 1)).font(egui::FontId::monospace(highlighter::CODE_EDITOR_LINE_HEIGHT))),
-                                                );
-                                            });
-                                        },
-                                    )
-                                });
+                            ui.add(lines_of_code_widget(lines_of_code));
+                            ui.add(egui::Separator::default());
 
                             ui.add(
                                 TextEdit::multiline(&mut self.program)
+                                    .margin(egui::Vec2::ZERO)
                                     .code_editor()
                                     .desired_width(ui.available_width())
                                     .desired_rows(10)
