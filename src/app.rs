@@ -127,6 +127,17 @@ impl eframe::App for App {
                         self.ran_program = true;
                         self.context.step();
                     }
+
+                    // HACK
+                    ui.text_edit_singleline(
+                        &mut self
+                            .context
+                            .memory()
+                            .0
+                            .iter()
+                            .map(|digit| format!("{:x} ", u16::from(*digit)))
+                            .collect::<String>(),
+                    );
                 });
 
                 ui.vertical_centered(|ui| ui.heading("Memory"));
